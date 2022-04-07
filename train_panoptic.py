@@ -326,6 +326,8 @@ def checkpoint(fold, log, config):
 
 
 def save_results(fold, metrics, table, config):
+    if not os.path.exists(os.path.join(config.res_dir, "Fold_{}".format(fold))):
+        os.makedirs(os.path.join(config.res_dir, "Fold_{}".format(fold)))
     with open(
         os.path.join(config.res_dir, "Fold_{}".format(fold), "test_metrics.json"), "w"
     ) as outfile:
