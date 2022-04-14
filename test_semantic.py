@@ -117,7 +117,7 @@ def main(config):
         model.load_state_dict(
             torch.load(
                 os.path.join(
-                    config.res_dir, "Fold_{}".format(fold + 1), "model.pth.tar"
+                    config.weight_folder, "Fold_{}".format(fold + 1), "model.pth.tar"
                 )
             )["state_dict"]
         )

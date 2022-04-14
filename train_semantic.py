@@ -9,6 +9,7 @@ import os
 import pickle as pkl
 import pprint
 import time
+import wandb
 
 import numpy as np
 import torch
@@ -113,12 +114,17 @@ parser.set_defaults(cache=False)
 def iterate(
     model, data_loader, criterion, config, optimizer=None, mode="train", device=None
 ):
+    wandb.init(project="utae-pastis-semantic-wandb", config=config)
+    wandb.watch(model)
     loss_meter = tnt.meter.AverageValueMeter()
     iou_meter = IoU(
         num_classes=config.num_classes,
         ignore_index=config.ignore_index,
         cm_device=config.device,
     )
+
+    # Initialize a wandb Table
+    # preds_table = wandb.Table(columns=[ "saliency", "heatmap"])
 
     t_start = time.time()
     for i, batch in enumerate(data_loader):
@@ -192,6 +198,8 @@ def checkpoint(fold, log, config):
 
 
 def save_results(fold, metrics, conf_mat, config):
+    if not os.path.exists(os.path.join(config.res_dir, "Fold_{}".format(fold))):
+        os.makedirs(os.path.join(config.res_dir, "Fold_{}".format(fold)))
     with open(
         os.path.join(config.res_dir, "Fold_{}".format(fold), "test_metrics.json"), "w"
     ) as outfile:
