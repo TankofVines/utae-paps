@@ -141,6 +141,10 @@ def iterate(
             out = model(x, batch_positions=dates)
 
         loss = criterion(out, y)
+        miou, acc = iou_meter.get_miou_acc()
+        wandb.log({'loss': loss,
+                   'miou': miou,
+                   'acc': acc})
         if mode == "train":
             loss.backward()
             optimizer.step()
