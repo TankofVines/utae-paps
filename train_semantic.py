@@ -114,7 +114,7 @@ parser.set_defaults(cache=False)
 def iterate(
     model, data_loader, criterion, config, optimizer=None, mode="train", device=None
 ):
-    wandb.init(project="utae-pastis-semantic-wandb", config=config)
+    wandb.init(project="utae-pastis-semantic-wandb", job_type="test", config=config)
     wandb.watch(model)
     loss_meter = tnt.meter.AverageValueMeter()
     iou_meter = IoU(
@@ -124,7 +124,32 @@ def iterate(
     )
 
     # Initialize a wandb Table
-    # preds_table = wandb.Table(columns=[ "saliency", "heatmap"])
+    preds_table = wandb.Table(columns=["rgb_image",
+                                        "dates",
+                                        ])
+
+    class_labels = {
+          0: "Background",
+          1: "Meadow",
+          2: "Soft winter wheat",
+          3: "Corn",
+          4: "Winter barley",
+          5: "Winter rapeseed",
+          6: "Spring barley",
+          7: "Sunflower",
+          8: "Grapevine",
+          9: "Beet",
+          10: "Winter triticale",
+          11: "Winter durum wheat",
+          12: "Fruits,  vegetables, flowers",
+          13: "Potatoes",
+          14: "Leguminous fodder",
+          15: "Soybeans",
+          16: "Orchard",
+          17: "Mixed cereal",
+          18: "Sorghum",
+          19: "Void label"
+        }
 
     t_start = time.time()
     for i, batch in enumerate(data_loader):
@@ -151,6 +176,22 @@ def iterate(
 
         with torch.no_grad():
             pred = out.argmax(dim=1)
+
+        for image, pred_mask, ground_mask, date in zip(x[:, 0, [3, 2, 1]], pred, y, dates):
+            preds_table.add_data(
+                wandb.Image(image, masks={
+                    "predictions": {
+                        "mask_data": pred_mask.cpu().numpy(),
+                        "class_labels": class_labels
+                    },
+                    "ground_truth": {
+                        "mask_data": ground_mask.cpu().numpy(),
+                        "class_labels": class_labels
+                    }
+                }),
+                date.cpu().tolist()
+            )
+
         iou_meter.add(pred, y)
         loss_meter.add(loss.item())
 
@@ -161,6 +202,8 @@ def iterate(
                     i + 1, len(data_loader), loss_meter.value()[0], acc, miou
                 )
             )
+
+    wandb.log({"sample_predictions": preds_table})
 
     t_end = time.time()
     total_time = t_end - t_start

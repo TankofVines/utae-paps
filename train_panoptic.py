@@ -214,7 +214,7 @@ def iterate(
 
     # Initialize a wandb Table
     # "center_mask",
-    preds_table = wandb.Table(columns=[ "saliency", "heatmap"])
+    preds_table = wandb.Table(columns=["saliency", "heatmap"])
 
     t_start = time.time()
     for i, batch in enumerate(data_loader):

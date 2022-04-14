@@ -12,6 +12,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.utils.data as data
+import wandb
 
 from src import utils, model_utils
 from src.dataset import PASTIS_Dataset
@@ -62,6 +63,35 @@ def main(config):
         [[4, 5, 1], [2], [3]],
         [[5, 1, 2], [3], [4]],
     ]
+
+    with wandb.init(project="utae-pastis-semantic-wandb", job_type="load") as run:
+        annotations_arti = wandb.Artifact('test_annotations', type='dataset')
+        annotations_arti.add_dir('data/PASTIS/ANNOTATIONS')
+        run.log_artifact(annotations_arti)
+
+        image_arti = wandb.Artifact('test_images', type='dataset')
+        image_arti.add_dir('data/PASTIS/DATA_S2')
+        run.log_artifact(image_arti)
+
+        run.finish()
+
+    with wandb.init(project="utae-pastis-semantic-wandb", job_type="sample_table") as table_run:
+        sample_test_tbl = wandb.Table(columns=["filename", "true_color", "false_color_ir", ])
+
+        # Log the first n images in the test dataset
+        for image in os.listdir(config.dataset_folder + "DATA_S2")[:10]:
+
+            rgb_idx = [2, 1, 0]
+            rgb = np.moveaxis(np.load(config.dataset_folder + "DATA_S2/" + image)[0, 1:4][rgb_idx], [0, 1, 2], [2, 0, 1])
+            fci = np.moveaxis(np.load(config.dataset_folder + "DATA_S2/" + image)[0, [7, 3, 4]], [0, 1, 2], [2, 0, 1])
+
+            sample_test_tbl.add_data(
+                image,
+                wandb.Image(rgb),
+                wandb.Image(fci)
+            )
+
+        table_run.log({"sample-test-data": sample_test_tbl})
 
     np.random.seed(config.rdm_seed)
     torch.manual_seed(config.rdm_seed)
