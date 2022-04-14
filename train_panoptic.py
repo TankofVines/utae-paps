@@ -8,6 +8,7 @@ import json
 import os
 import pprint
 import time
+import wandb
 
 import numpy as np
 import torch
@@ -168,7 +169,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "--display_step",
-    default=50,
+    default=1,
     type=int,
     help="Interval in batches between display of training metrics",
 )
@@ -198,6 +199,8 @@ def iterate(
     heatmap_only=False,
     autotune=False,
 ):
+    wandb.init(project="utae-pastis-wandb", config=config)
+    wandb.watch(model)
     loss_meter = tnt.meter.AverageValueMeter()
     loss_center_meter = tnt.meter.AverageValueMeter()
     loss_size_meter = tnt.meter.AverageValueMeter()
@@ -208,6 +211,10 @@ def iterate(
         pano_meter = PanopticMeter(
             num_classes=config.num_classes, void_label=config.void_label
         )
+
+    # Initialize a wandb Table
+    # "center_mask",
+    preds_table = wandb.Table(columns=[ "saliency", "heatmap"])
 
     t_start = time.time()
     for i, batch in enumerate(data_loader):
@@ -223,6 +230,14 @@ def iterate(
                     pseudo_nms=compute_metrics,
                     heatmap_only=heatmap_only,
                 )
+
+                # [wandb.Image(predictions["center_mask"], )]
+                for saliency, heatmap in zip (predictions["saliency"], predictions["heatmap"]):
+                    preds_table.add_data(
+                        wandb.Image(saliency),
+                        wandb.Image(heatmap)
+                    )
+
         else:
             zones = y[:, :, :, 2] if config.supmax else None
             optimizer.zero_grad()
@@ -234,6 +249,7 @@ def iterate(
                 heatmap_only=heatmap_only,
             )
         loss = criterion(predictions, y, heatmap_only=heatmap_only)
+        wandb.log({'test_loss': loss})
 
         if mode == "train":
             loss.backward()
@@ -243,6 +259,10 @@ def iterate(
             pano_meter.add(predictions, y)
 
         ce, si, sh, cl = criterion.value
+        wandb.log({'center': ce,
+                   'size': si,
+                   'shape': sh,
+                   'class': cl})
         loss_center_meter.add(ce)
         loss_size_meter.add(si)
         loss_shape_meter.add(sh)
@@ -252,6 +272,9 @@ def iterate(
         if (i + 1) % config.display_step == 0:
             if compute_metrics:
                 sq, rq, pq = pano_meter.value()
+                wandb.log({'segmentation_quality': sq,
+                           'recognition_quality': rq,
+                           'panoptic_quality': pq})
                 print(
                     "Step [{}/{}], Loss: {:.4f}, SQ {:.1f},  RQ {:.1f}  , PQ {:.1f}".format(
                         i + 1,
@@ -268,6 +291,8 @@ def iterate(
                         i + 1, len(data_loader), loss_meter.value()[0]
                     )
                 )
+
+    wandb.log({"pastis_predictions": preds_table})
 
     if autotune:
         thrsh = tune_threshold(criterion.predicted_confidences, criterion.achieved_ious)
@@ -298,6 +323,7 @@ def iterate(
             }
         )
     if mode == "test":
+        # test_table = wandb.Table(data=pano_meter.get_table())
         return metrics, pano_meter.get_table()
     else:
         return metrics

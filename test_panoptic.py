@@ -53,7 +53,6 @@ parser.add_argument(
     help="Interval in batches between display of training metrics",
 )
 
-
 def main(config):
     np.random.seed(config.rdm_seed)
     torch.manual_seed(config.rdm_seed)
